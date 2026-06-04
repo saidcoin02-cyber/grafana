@@ -2356,12 +2356,12 @@ __metadata:
   linkType: hard
 
 "@grafana/aws-sdk@npm:^0.10.1":
-  version: 0.10.1
-  resolution: "@grafana/aws-sdk@npm:0.10.1"
+  version: 0.10.3
+  resolution: "@grafana/aws-sdk@npm:0.10.3"
   dependencies:
     "@grafana/async-query-data": "npm:0.4.2"
     "@grafana/plugin-ui": "npm:^0.13.0"
-  checksum: 10/91757aef8467a453ee20d51e3de968db5c97ca345d912268e4c683beb6d18ce3175db6852d657cefd55e0d2637e9918c39278344050af7853466534378962a29
+  checksum: 10/1806ea47b2fea326eb43fc009ff344631e4c34bd74487d9ae97d089cdaf0ded8ff73e7ef47f0265dc5f5fcee6e3021bfbca345ceb53fad29ee7d021f12fab9f2
   languageName: node
   linkType: hard
 
