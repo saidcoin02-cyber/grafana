@@ -13637,9 +13637,31 @@
       "truncated": "Message truncated"
     },
     "migrate": {
+      "dashboards-collapse": "Collapse {{folder}}",
+      "dashboards-expand": "Expand {{folder}}",
+      "dashboards-folder-only-subfolders": "Dashboards in this folder live in subfolders. Migrate the folder to bring them all in one go.",
+      "dashboards-folder-summary_one": "{{count}} dashboards",
+      "dashboards-folder-summary_other": "{{count}} dashboards",
+      "dashboards-sort-aria": "Sort folders",
+      "dashboards-sort-count-asc": "Fewest dashboards",
+      "dashboards-sort-count-desc": "Most dashboards",
+      "dashboards-sort-title-asc": "Name (A–Z)",
+      "dashboards-sort-title-desc": "Name (Z–A)",
+      "dashboards-to-migrate-all-managed": "All folders are already managed.",
+      "dashboards-to-migrate-empty": "No folders or dashboards match the current search.",
+      "dashboards-to-migrate-footer_one": "Showing {{count}} of {{total}} folders",
+      "dashboards-to-migrate-footer_other": "Showing {{count}} of {{total}} folders",
+      "dashboards-to-migrate-heading": "Dashboards to migrate",
+      "dashboards-to-migrate-search": "Search folders and dashboards",
+      "dashboards-to-migrate-subtitle": "Folders and dashboards on this instance that are not yet managed by GitOps.",
+      "general-folder-title": "General (root dashboards)",
       "header-subtitle": "Manage your dashboards and folders like code — every change tracked, every update reviewed, every environment reproducible. Connect a Git repository to get started.",
       "header-title": "Migrate to GitOps",
-      "intro": "The guided migration workflow is on its way. In the meantime, read the <2>provisioning documentation</2> to learn how Git Sync keeps Grafana and your repository in step."
+      "leaderboard-error-body": "The Migrate page needs the folder leaderboard to figure out what to migrate. Refresh the page to try again.",
+      "leaderboard-error-title": "Failed to load folder list",
+      "leaderboard-truncated-body": "This instance has more folders or dashboards than this page can scan in one go. The list below covers a subset; migrate from it in batches and reload the page after each migration to surface the next batch.",
+      "leaderboard-truncated-title": "Showing a partial view of folders and dashboards",
+      "loading-folders": "Loading folders..."
     },
     "missing-folder-metadata-banner": {
       "error-message": "Could not verify whether this folder has a metadata file. Please try again later.",
