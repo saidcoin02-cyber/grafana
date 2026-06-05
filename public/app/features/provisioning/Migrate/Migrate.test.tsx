@@ -58,19 +58,16 @@ describe('Migrate', () => {
     expect(screen.getByRole('combobox')).toHaveValue('');
   });
 
-  it('shows the choose-what-to-migrate step with the everything mode selected', () => {
-    render(<Migrate />);
+  it('lets the user select everything and promises an upcoming resource table', async () => {
+    const { user } = render(<Migrate />);
 
     expect(screen.getByRole('heading', { name: /choose what to migrate/i })).toBeInTheDocument();
     expect(screen.getByText('2')).toBeInTheDocument();
-    expect(screen.getByText(/migrate everything/i)).toBeInTheDocument();
-  });
-
-  it('marks the selective migration option as coming soon and disabled', () => {
-    render(<Migrate />);
-
-    expect(screen.getByText(/choose specific folders/i)).toBeInTheDocument();
     expect(screen.getByText(/coming soon/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /select everything/i }));
+
+    expect(screen.getByRole('button', { name: /everything selected/i })).toBeInTheDocument();
   });
 
   it('shows the migrate step with the Git Sync limitations warning', () => {
@@ -82,16 +79,19 @@ describe('Migrate', () => {
     expect(screen.getByText(/alerts and library panels are not supported/i)).toBeInTheDocument();
   });
 
-  it('disables the migrate button until a target repository is selected', () => {
-    render(<Migrate repos={[makeRepo('repo-1', 'Repo one'), makeRepo('repo-2', 'Repo two')]} />);
+  it('keeps the migrate button disabled until a repository and resources are selected', () => {
+    render(<Migrate repos={[makeRepo('repo-1', 'My only repo')]} />);
 
-    // The button keeps a tooltip while disabled, so Grafana renders it with
+    // The repository is auto-selected, but nothing has been selected to migrate
+    // yet. The button keeps a tooltip while disabled, so Grafana renders it with
     // aria-disabled rather than the native disabled attribute.
     expect(screen.getByRole('button', { name: /begin migration/i })).toHaveAttribute('aria-disabled', 'true');
   });
 
-  it('enables the migrate button when a single repository is auto-selected', () => {
-    render(<Migrate repos={[makeRepo('repo-1', 'My only repo')]} />);
+  it('enables the migrate button once a repository and everything are selected', async () => {
+    const { user } = render(<Migrate repos={[makeRepo('repo-1', 'My only repo')]} />);
+
+    await user.click(screen.getByRole('button', { name: /select everything/i }));
 
     expect(screen.getByRole('button', { name: /begin migration/i })).toBeEnabled();
   });
@@ -99,6 +99,7 @@ describe('Migrate', () => {
   it('replaces the steps with a congratulations panel once migration completes', async () => {
     const { user } = render(<Migrate repos={[makeRepo('repo-1', 'My only repo')]} />);
 
+    await user.click(screen.getByRole('button', { name: /select everything/i }));
     await user.click(screen.getByRole('button', { name: /begin migration/i }));
 
     expect(screen.getByRole('heading', { name: /migration complete/i })).toBeInTheDocument();
@@ -110,6 +111,7 @@ describe('Migrate', () => {
   it('returns to the steps when starting over from the congratulations panel', async () => {
     const { user } = render(<Migrate repos={[makeRepo('repo-1', 'My only repo')]} />);
 
+    await user.click(screen.getByRole('button', { name: /select everything/i }));
     await user.click(screen.getByRole('button', { name: /begin migration/i }));
     await user.click(screen.getByRole('button', { name: /start over/i }));
 

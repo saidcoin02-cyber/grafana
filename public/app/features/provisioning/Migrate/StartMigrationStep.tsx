@@ -75,7 +75,7 @@ export function StartMigrationStep({ number, disabled, onMigrate }: StartMigrati
               disabled
                 ? t(
                     'provisioning.migrate.migrate-button-disabled-tooltip',
-                    'Select a target repository in step 1 first'
+                    'Complete steps 1 and 2 first: select a target repository and the resources to migrate'
                   )
                 : undefined
             }

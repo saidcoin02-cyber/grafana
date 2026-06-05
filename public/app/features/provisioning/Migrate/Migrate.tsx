@@ -9,7 +9,7 @@ import { CONFIGURE_GRAFANA_DOCS_URL } from '../constants';
 
 import { ConnectRepositoryStep } from './ConnectRepositoryStep';
 import { MigrationComplete } from './MigrationComplete';
-import { type MigrationMode, MigrationScopeStep } from './MigrationScopeStep';
+import { SelectResourcesStep } from './SelectResourcesStep';
 import { StartMigrationStep } from './StartMigrationStep';
 
 interface MigrateProps {
@@ -41,8 +41,9 @@ export function Migrate({ repos = [] }: MigrateProps) {
     repoOptions.length === 1 ? repoOptions[0].value : undefined
   );
 
-  // Selective migration isn't available yet, so "everything" is the only mode.
-  const [mode, setMode] = useState<MigrationMode>('everything');
+  // Selecting specific resources isn't available yet, so the only option is to
+  // migrate everything.
+  const [everythingSelected, setEverythingSelected] = useState(false);
 
   const [migrationComplete, setMigrationComplete] = useState(false);
 
@@ -75,9 +76,17 @@ export function Migrate({ repos = [] }: MigrateProps) {
             onSelectRepo={setSelectedRepo}
           />
 
-          <MigrationScopeStep number={2} mode={mode} onModeChange={setMode} />
+          <SelectResourcesStep
+            number={2}
+            selected={everythingSelected}
+            onSelectAll={() => setEverythingSelected(true)}
+          />
 
-          <StartMigrationStep number={3} disabled={!selectedRepo} onMigrate={() => setMigrationComplete(true)} />
+          <StartMigrationStep
+            number={3}
+            disabled={!selectedRepo || !everythingSelected}
+            onMigrate={() => setMigrationComplete(true)}
+          />
 
           <Text color="secondary">
             <Trans i18nKey="provisioning.migrate.intro">
