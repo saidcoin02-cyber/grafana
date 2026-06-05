@@ -4,11 +4,12 @@ import { config } from '@grafana/runtime';
 
 import HomePage from './HomePage';
 
-// Stub the per-tab content so the test stays focused on the tab wiring. The
-// Migrate tab is intentionally NOT mocked — we assert its real placeholder
-// renders when the tab is active.
+// Stub the per-tab content so the test stays focused on the tab wiring.
 jest.mock('./Shared/RepositoryList', () => ({
   RepositoryList: () => <div>repositories-content</div>,
+}));
+jest.mock('./Migrate/Migrate', () => ({
+  Migrate: () => <div>migrate-content</div>,
 }));
 jest.mock('./GettingStarted/GettingStarted', () => ({
   __esModule: true,
@@ -58,7 +59,7 @@ describe('Provisioning HomePage', () => {
     expect(screen.queryByRole('tab', { name: /migrate to gitops/i })).not.toBeInTheDocument();
   });
 
-  it('shows the Migrate to GitOps tab and renders the placeholder when the flag is on', async () => {
+  it('shows the Migrate to GitOps tab and renders its content when the flag is on', async () => {
     config.featureToggles.provisioningExport = true;
     const { user } = renderHomePage();
 
@@ -67,15 +68,14 @@ describe('Provisioning HomePage', () => {
 
     await user.click(migrateTab);
 
-    expect(screen.getByRole('heading', { name: /migrate to gitops/i })).toBeInTheDocument();
-    expect(screen.getByText(/^experimental$/i)).toBeInTheDocument();
+    expect(screen.getByText('migrate-content')).toBeInTheDocument();
   });
 
-  it('opens directly on the Migrate placeholder when the URL targets it and the flag is on', () => {
+  it('opens directly on the Migrate tab when the URL targets it and the flag is on', () => {
     config.featureToggles.provisioningExport = true;
     renderHomePage('/admin/provisioning?tab=migrate');
 
-    expect(screen.getByRole('heading', { name: /migrate to gitops/i })).toBeInTheDocument();
+    expect(screen.getByText('migrate-content')).toBeInTheDocument();
   });
 
   it('falls back to the default tab when ?tab=migrate is set but the flag is off', () => {
@@ -83,8 +83,8 @@ describe('Provisioning HomePage', () => {
     renderHomePage('/admin/provisioning?tab=migrate');
 
     // No repos/connections → default tab is Get started. The Migrate
-    // placeholder heading must not render.
+    // content must not render.
     expect(screen.getByText('getting-started-content')).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: /migrate to gitops/i })).not.toBeInTheDocument();
+    expect(screen.queryByText('migrate-content')).not.toBeInTheDocument();
   });
 });

@@ -1,13 +1,31 @@
+import { within } from '@testing-library/react';
 import { render, screen } from 'test/test-utils';
 
 import { type Repository } from 'app/api/clients/provisioning/v0alpha1';
 
 import { Migrate } from './Migrate';
 
-// Keep the unit focused on the step box and repository selector. The connect
-// dropdown has its own coverage and pulls in frontend settings / navigation.
+const mockCreateSyncJob = jest.fn();
+let mockStatsResult: { data?: { unmanaged?: Array<{ group: string; count: number }> }; isLoading: boolean };
+
+// Keep the unit focused on the migration tool. The connect dropdown, the job
+// progress view, and the limitations alert have their own coverage and pull in
+// frontend settings / live queries / feature flags.
 jest.mock('../Shared/ConnectRepositoryButton', () => ({
   ConnectRepositoryButton: () => <div>connect-repository-button</div>,
+}));
+jest.mock('../Shared/GitSyncLimitationsAlert', () => ({
+  GitSyncLimitationsAlert: () => <div>git-sync-limitations</div>,
+}));
+jest.mock('../Job/JobStatus', () => ({
+  JobStatus: () => <div>job-status</div>,
+}));
+jest.mock('../Wizard/hooks/useCreateSyncJob', () => ({
+  useCreateSyncJob: () => ({ createSyncJob: mockCreateSyncJob, isLoading: false }),
+}));
+jest.mock('app/api/clients/provisioning/v0alpha1', () => ({
+  ...jest.requireActual('app/api/clients/provisioning/v0alpha1'),
+  useGetResourceStatsQuery: () => mockStatsResult,
 }));
 
 function makeRepo(name: string, title: string): Repository {
@@ -18,6 +36,13 @@ function makeRepo(name: string, title: string): Repository {
 }
 
 describe('Migrate', () => {
+  beforeEach(() => {
+    mockCreateSyncJob.mockReset();
+    mockCreateSyncJob.mockResolvedValue({ metadata: { name: 'job-1' } });
+    // Default: there are unmanaged resources, so the migration form is shown.
+    mockStatsResult = { data: { unmanaged: [{ group: 'dashboard.grafana.app', count: 3 }] }, isLoading: false };
+  });
+
   it('renders the Migrate to GitOps heading with an experimental badge', () => {
     render(<Migrate />);
 
@@ -25,25 +50,34 @@ describe('Migrate', () => {
     expect(screen.getByText(/^experimental$/i)).toBeInTheDocument();
   });
 
-  it('links to the provisioning documentation', () => {
+  it('shows a loading state while resource stats are fetched', () => {
+    mockStatsResult = { isLoading: true };
     render(<Migrate />);
 
-    const docsLink = screen.getByRole('link', { name: /provisioning documentation/i });
-    expect(docsLink).toHaveAttribute('href', expect.stringContaining('grafana.com/docs'));
+    expect(screen.getByText(/checking for resources to migrate/i)).toBeInTheDocument();
   });
 
-  it('shows the connect-a-repository first step', () => {
-    render(<Migrate />);
+  it('shows a success state when there are no unmanaged resources', () => {
+    mockStatsResult = { data: { unmanaged: [] }, isLoading: false };
+    render(<Migrate repos={[makeRepo('repo-1', 'My only repo')]} />);
 
-    expect(screen.getByRole('heading', { name: /connect a repository/i })).toBeInTheDocument();
-    expect(screen.getByText('1')).toBeInTheDocument();
-    expect(screen.getByText('connect-repository-button')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /everything is managed in git/i })).toBeInTheDocument();
+    // The setup controls are hidden when there's nothing to migrate.
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /migrate everything/i })).not.toBeInTheDocument();
+  });
+
+  it('shows the coming-soon note for selective migration', () => {
+    render(<Migrate repos={[makeRepo('repo-1', 'My only repo')]} />);
+
+    expect(screen.getByText(/selected dashboards and folders is coming soon/i)).toBeInTheDocument();
   });
 
   it('does not render the repository selector when there are no repositories', () => {
     render(<Migrate repos={[]} />);
 
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.getByText('connect-repository-button')).toBeInTheDocument();
   });
 
   it('pre-selects the repository when exactly one is connected', () => {
@@ -58,63 +92,50 @@ describe('Migrate', () => {
     expect(screen.getByRole('combobox')).toHaveValue('');
   });
 
-  it('lets the user select everything and promises an upcoming resource table', async () => {
-    const { user } = render(<Migrate />);
+  it('keeps the migrate button disabled until a repository is selected', () => {
+    render(<Migrate repos={[makeRepo('repo-1', 'Repo one'), makeRepo('repo-2', 'Repo two')]} />);
 
-    expect(screen.getByRole('heading', { name: /choose what to migrate/i })).toBeInTheDocument();
-    expect(screen.getByText('2')).toBeInTheDocument();
-    expect(screen.getByText(/coming soon/i)).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: /select everything/i }));
-
-    expect(screen.getByRole('button', { name: /everything selected/i })).toBeInTheDocument();
-  });
-
-  it('shows the migrate step with the Git Sync limitations warning', () => {
-    render(<Migrate />);
-
-    expect(screen.getByRole('heading', { name: /start the migration/i })).toBeInTheDocument();
-    expect(screen.getByText('3')).toBeInTheDocument();
-    expect(screen.getByText(/review git sync limitations/i)).toBeInTheDocument();
-    expect(screen.getByText(/alerts and library panels are not supported/i)).toBeInTheDocument();
-  });
-
-  it('keeps the migrate button disabled until a repository and resources are selected', () => {
-    render(<Migrate repos={[makeRepo('repo-1', 'My only repo')]} />);
-
-    // The repository is auto-selected, but nothing has been selected to migrate
-    // yet. The button keeps a tooltip while disabled, so Grafana renders it with
+    // The button keeps a tooltip while disabled, so Grafana renders it with
     // aria-disabled rather than the native disabled attribute.
-    expect(screen.getByRole('button', { name: /begin migration/i })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('button', { name: /migrate everything/i })).toHaveAttribute('aria-disabled', 'true');
   });
 
-  it('enables the migrate button once a repository and everything are selected', async () => {
+  it('shows the Git Sync limitations only in the confirmation dialog', async () => {
     const { user } = render(<Migrate repos={[makeRepo('repo-1', 'My only repo')]} />);
 
-    await user.click(screen.getByRole('button', { name: /select everything/i }));
+    // Not shown inline.
+    expect(screen.queryByText('git-sync-limitations')).not.toBeInTheDocument();
 
-    expect(screen.getByRole('button', { name: /begin migration/i })).toBeEnabled();
+    await user.click(screen.getByRole('button', { name: 'Migrate everything' }));
+
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText(/start migration\?/i)).toBeInTheDocument();
+    expect(within(dialog).getByText('git-sync-limitations')).toBeInTheDocument();
+    // Nothing happens until the user confirms.
+    expect(mockCreateSyncJob).not.toHaveBeenCalled();
   });
 
-  it('replaces the steps with a congratulations panel once migration completes', async () => {
+  it('starts the migration job and shows its progress after confirming', async () => {
     const { user } = render(<Migrate repos={[makeRepo('repo-1', 'My only repo')]} />);
 
-    await user.click(screen.getByRole('button', { name: /select everything/i }));
-    await user.click(screen.getByRole('button', { name: /begin migration/i }));
+    await user.click(screen.getByRole('button', { name: 'Migrate everything' }));
+    const dialog = screen.getByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Migrate everything' }));
 
-    expect(screen.getByRole('heading', { name: /migration complete/i })).toBeInTheDocument();
-    // The step-by-step flow is hidden once the migration is done.
-    expect(screen.queryByRole('heading', { name: /connect a repository/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: /start the migration/i })).not.toBeInTheDocument();
+    expect(mockCreateSyncJob).toHaveBeenCalledWith(true);
+    expect(await screen.findByText('job-status')).toBeInTheDocument();
+    // The setup form is replaced by the job progress view.
+    expect(screen.queryByRole('button', { name: /migrate everything/i })).not.toBeInTheDocument();
   });
 
-  it('returns to the steps when starting over from the congratulations panel', async () => {
+  it('does not start the migration when the confirmation is dismissed', async () => {
     const { user } = render(<Migrate repos={[makeRepo('repo-1', 'My only repo')]} />);
 
-    await user.click(screen.getByRole('button', { name: /select everything/i }));
-    await user.click(screen.getByRole('button', { name: /begin migration/i }));
-    await user.click(screen.getByRole('button', { name: /start over/i }));
+    await user.click(screen.getByRole('button', { name: 'Migrate everything' }));
+    const dialog = screen.getByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: /cancel/i }));
 
-    expect(screen.getByRole('heading', { name: /connect a repository/i })).toBeInTheDocument();
+    expect(mockCreateSyncJob).not.toHaveBeenCalled();
+    expect(screen.getByText('connect-repository-button')).toBeInTheDocument();
   });
 });
