@@ -95,4 +95,24 @@ describe('Migrate', () => {
 
     expect(screen.getByRole('button', { name: /begin migration/i })).toBeEnabled();
   });
+
+  it('replaces the steps with a congratulations panel once migration completes', async () => {
+    const { user } = render(<Migrate repos={[makeRepo('repo-1', 'My only repo')]} />);
+
+    await user.click(screen.getByRole('button', { name: /begin migration/i }));
+
+    expect(screen.getByRole('heading', { name: /migration complete/i })).toBeInTheDocument();
+    // The step-by-step flow is hidden once the migration is done.
+    expect(screen.queryByRole('heading', { name: /connect a repository/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /start the migration/i })).not.toBeInTheDocument();
+  });
+
+  it('returns to the steps when starting over from the congratulations panel', async () => {
+    const { user } = render(<Migrate repos={[makeRepo('repo-1', 'My only repo')]} />);
+
+    await user.click(screen.getByRole('button', { name: /begin migration/i }));
+    await user.click(screen.getByRole('button', { name: /start over/i }));
+
+    expect(screen.getByRole('heading', { name: /connect a repository/i })).toBeInTheDocument();
+  });
 });

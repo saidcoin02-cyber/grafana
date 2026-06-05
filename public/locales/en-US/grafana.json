@@ -13637,6 +13637,10 @@
       "truncated": "Message truncated"
     },
     "migrate": {
+      "complete-description": "Your dashboards and folders are now managed in Git. From here on, changes are tracked and reviewed in your repository, then provisioned back into Grafana.",
+      "complete-start-over": "Start over",
+      "complete-title": "Migration complete",
+      "complete-view-repositories": "View repositories",
       "header-subtitle": "Manage your dashboards and folders like code — every change tracked, every update reviewed, every environment reproducible. Connect a Git repository to get started.",
       "header-title": "Migrate to GitOps",
       "intro": "New to Git Sync? Read the <2>provisioning documentation</2> to learn how it keeps Grafana and your repository in step.",
