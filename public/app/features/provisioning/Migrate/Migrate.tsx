@@ -8,7 +8,6 @@ import {
   Button,
   Combobox,
   type ComboboxOption,
-  ConfirmModal,
   FeatureBadge,
   Field,
   Icon,
@@ -17,17 +16,11 @@ import {
   Text,
   useStyles2,
 } from '@grafana/ui';
-import {
-  type Job,
-  type Repository,
-  type ResourceCount,
-  useGetResourceStatsQuery,
-} from 'app/api/clients/provisioning/v0alpha1';
+import { type Repository, type ResourceCount, useGetResourceStatsQuery } from 'app/api/clients/provisioning/v0alpha1';
 
-import { JobStatus } from '../Job/JobStatus';
 import { ConnectRepositoryButton } from '../Shared/ConnectRepositoryButton';
-import { GitSyncLimitationsAlert } from '../Shared/GitSyncLimitationsAlert';
-import { useCreateSyncJob } from '../Wizard/hooks/useCreateSyncJob';
+
+import { MigrateModal } from './MigrateModal';
 
 interface MigrateProps {
   repos?: Repository[];
@@ -47,10 +40,10 @@ function countMigratableResources(unmanaged?: ResourceCount[]) {
 
 /**
  * Migrate to GitOps tab — a tool for moving existing folders and dashboards
- * into a Git repository. The user picks a target repository, confirms, and
- * watches the migration job the same way the onboarding wizard does. When the
- * instance has nothing left to migrate it shows a success state instead.
- * Per-resource selection lands later; everything is migrated for now.
+ * into a Git repository. The user picks a target repository and confirms; the
+ * migration job then runs and reports its results inside a modal, the same way
+ * the onboarding wizard runs it. When the instance has nothing left to migrate
+ * it shows a success state instead. Per-resource selection lands later.
  */
 export function Migrate({ repos = [] }: MigrateProps) {
   const styles = useStyles2(getStyles);
@@ -79,28 +72,9 @@ export function Migrate({ repos = [] }: MigrateProps) {
     repoOptions.length === 1 ? repoOptions[0].value : undefined
   );
 
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [job, setJob] = useState<Job>();
-
-  const { createSyncJob } = useCreateSyncJob({ repoName: selectedRepo ?? '' });
+  const [showModal, setShowModal] = useState(false);
 
   const selectedRepoLabel = repoOptions.find((opt) => opt.value === selectedRepo)?.label ?? selectedRepo ?? '';
-
-  const startMigration = async () => {
-    setShowConfirm(false);
-    if (!selectedRepo) {
-      return;
-    }
-    const response = await createSyncJob(true);
-    if (response) {
-      setJob(response);
-    }
-  };
-
-  const retryMigration = () => {
-    setJob(undefined);
-    void startMigration();
-  };
 
   return (
     <Stack direction="column" gap={3}>
@@ -120,14 +94,19 @@ export function Migrate({ repos = [] }: MigrateProps) {
       </Stack>
 
       {renderContent()}
+
+      {showModal && selectedRepo && (
+        <MigrateModal
+          repoName={selectedRepo}
+          repoLabel={selectedRepoLabel}
+          onDismiss={() => setShowModal(false)}
+          onMigrated={() => statsQuery.refetch()}
+        />
+      )}
     </Stack>
   );
 
   function renderContent() {
-    if (job) {
-      return <JobStatus watch={job} jobType="sync" onRetry={retryMigration} />;
-    }
-
     if (statsQuery.isLoading) {
       return (
         <LoadingPlaceholder text={t('provisioning.migrate.loading-stats', 'Checking for resources to migrate…')} />
@@ -162,74 +141,52 @@ export function Migrate({ repos = [] }: MigrateProps) {
     }
 
     return (
-      <>
-        <Box padding={3} borderStyle="solid" borderColor="weak" borderRadius="default" backgroundColor="secondary">
-          <Stack direction="column" gap={3}>
-            <Field
-              noMargin
-              label={t('provisioning.migrate.repo-label', 'Target repository')}
-              description={t(
-                'provisioning.migrate.repo-description',
-                'The repository your dashboards and folders will be migrated into.'
+      <Box padding={3} borderStyle="solid" borderColor="weak" borderRadius="default" backgroundColor="secondary">
+        <Stack direction="column" gap={3}>
+          <Field
+            noMargin
+            label={t('provisioning.migrate.repo-label', 'Target repository')}
+            description={t(
+              'provisioning.migrate.repo-description',
+              'The repository your dashboards and folders will be migrated into.'
+            )}
+          >
+            <Stack direction="row" gap={1} alignItems="center" wrap="wrap">
+              {repoOptions.length > 0 && (
+                <Combobox
+                  id="migrate-target-repository"
+                  width={40}
+                  options={repoOptions}
+                  value={selectedRepo ?? null}
+                  placeholder={t('provisioning.migrate.repo-placeholder', 'Select a repository')}
+                  onChange={(option) => setSelectedRepo(option.value)}
+                />
               )}
+              <ConnectRepositoryButton items={repos} />
+            </Stack>
+          </Field>
+
+          <Stack direction="column" gap={1} alignItems="flex-start">
+            <Button
+              variant="primary"
+              disabled={!selectedRepo}
+              onClick={() => setShowModal(true)}
+              tooltip={
+                !selectedRepo
+                  ? t('provisioning.migrate.migrate-button-disabled-tooltip', 'Select a target repository first')
+                  : undefined
+              }
             >
-              <Stack direction="row" gap={1} alignItems="center" wrap="wrap">
-                {repoOptions.length > 0 && (
-                  <Combobox
-                    id="migrate-target-repository"
-                    width={40}
-                    options={repoOptions}
-                    value={selectedRepo ?? null}
-                    placeholder={t('provisioning.migrate.repo-placeholder', 'Select a repository')}
-                    onChange={(option) => setSelectedRepo(option.value)}
-                  />
-                )}
-                <ConnectRepositoryButton items={repos} />
-              </Stack>
-            </Field>
-
-            <Stack direction="column" gap={1} alignItems="flex-start">
-              <Button
-                variant="primary"
-                disabled={!selectedRepo}
-                onClick={() => setShowConfirm(true)}
-                tooltip={
-                  !selectedRepo
-                    ? t('provisioning.migrate.migrate-button-disabled-tooltip', 'Select a target repository first')
-                    : undefined
-                }
-              >
-                <Trans i18nKey="provisioning.migrate.migrate-button">Migrate everything</Trans>
-              </Button>
-              <Text color="secondary" variant="bodySmall">
-                <Trans i18nKey="provisioning.migrate.selective-coming-soon">
-                  Migrating only selected dashboards and folders is coming soon.
-                </Trans>
-              </Text>
-            </Stack>
+              <Trans i18nKey="provisioning.migrate.migrate-button">Migrate everything</Trans>
+            </Button>
+            <Text color="secondary" variant="bodySmall">
+              <Trans i18nKey="provisioning.migrate.selective-coming-soon">
+                Migrating only selected dashboards and folders is coming soon.
+              </Trans>
+            </Text>
           </Stack>
-        </Box>
-
-        <ConfirmModal
-          isOpen={showConfirm}
-          title={t('provisioning.migrate.confirm-title', 'Start migration?')}
-          body={
-            <Stack direction="column" gap={2}>
-              <Text>
-                {t(
-                  'provisioning.migrate.confirm-body',
-                  'All dashboards and folders will be migrated into "{{repo}}". This is a one-time operation.',
-                  { repo: selectedRepoLabel }
-                )}
-              </Text>
-              <GitSyncLimitationsAlert syncTarget="instance" />
-            </Stack>
-          }
-          confirmText={t('provisioning.migrate.confirm-button', 'Migrate everything')}
-          onConfirm={startMigration}
-          onDismiss={() => setShowConfirm(false)}
-        />
-      </>
+        </Stack>
+      </Box>
     );
   }
 }
