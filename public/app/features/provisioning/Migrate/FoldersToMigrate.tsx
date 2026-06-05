@@ -5,7 +5,7 @@ import { type GrafanaTheme2 } from '@grafana/data';
 import { t, Trans } from '@grafana/i18n';
 import { Combobox, EmptyState, FilterInput, Icon, IconButton, Stack, Text, useStyles2 } from '@grafana/ui';
 
-import { type FolderRow } from './hooks/useFolderLeaderboard';
+import { type FolderRow } from './hooks/useFolderMigrationData';
 
 type SortKey = 'count-desc' | 'count-asc' | 'title-asc' | 'title-desc';
 

@@ -7,7 +7,6 @@ import { type DashboardQueryResult } from 'app/features/search/service/types';
 import { extractManagerKind, queryResultToViewItem } from 'app/features/search/service/utils';
 
 const PAGE_SIZE = 200;
-const MAX_PAGES = 25;
 
 export interface FolderPeekDashboard {
   uid: string;
@@ -49,17 +48,6 @@ interface State {
   data: FolderRow[];
   isLoading: boolean;
   isError: boolean;
-  /**
-   * True when either the folder or dashboard fetch hit MAX_PAGES * PAGE_SIZE
-   * and stopped paging. The leaderboard then represents only a subset of the
-   * instance — surface this so the page can warn the admin.
-   */
-  isTruncated: boolean;
-}
-
-interface PagedResult<T> {
-  rows: T[];
-  truncated: boolean;
 }
 
 /**
@@ -80,29 +68,27 @@ function readImmediateParent(location: unknown): string | undefined {
 }
 
 async function fetchAllFolders(): Promise<
-  PagedResult<{ uid: string; title: string; parentUid?: string; managedBy?: string }>
+  Array<{ uid: string; title: string; parentUid?: string; managedBy?: string }>
 > {
   const searcher = getGrafanaSearcher();
   const rows: Array<{ uid: string; title: string; parentUid?: string; managedBy?: string }> = [];
   // Use the searcher with `kind: ['folder']` and no location filter so we get
   // every folder on the instance — root-level *and* nested. listFolders only
   // returns immediate children of a single parent, which would silently drop
-  // subfolders from the leaderboard.
-  let totalRows = 0;
-  for (let page = 1; page <= MAX_PAGES; page++) {
+  // subfolders. Page until the searcher has no more rows to give: a short page
+  // means we've reached the end, and `totalRows` is the upper bound that stops
+  // us once everything that exists has been collected. No fixed page cap — the
+  // table is meant to show the whole instance.
+  let totalRows = Number.POSITIVE_INFINITY;
+  for (let page = 0; rows.length < totalRows; page++) {
     const result = await searcher.search({
       kind: ['folder'],
       query: '*',
-      from: (page - 1) * PAGE_SIZE,
-      offset: (page - 1) * PAGE_SIZE,
+      from: page * PAGE_SIZE,
+      offset: page * PAGE_SIZE,
       limit: PAGE_SIZE,
     });
     const items: DashboardQueryResult[] = result.view.toArray();
-    // The searcher reports the total matching count on every response; cache
-    // it so we can compare what we *collected* against what *exists* once the
-    // loop ends. Comparing rows.length to totalRows is the only honest check
-    // for truncation — using "page 25 was full" produces a false positive
-    // when the dataset size is exactly MAX_PAGES * PAGE_SIZE.
     if (typeof result.totalRows === 'number') {
       totalRows = result.totalRows;
     }
@@ -118,21 +104,21 @@ async function fetchAllFolders(): Promise<
       break;
     }
   }
-  return { rows, truncated: totalRows > rows.length };
+  return rows;
 }
 
 async function fetchAllDashboards(): Promise<
-  PagedResult<{ uid: string; title: string; parentUid?: string; managedBy?: string; url: string }>
+  Array<{ uid: string; title: string; parentUid?: string; managedBy?: string; url: string }>
 > {
   const searcher = getGrafanaSearcher();
   const rows: Array<{ uid: string; title: string; parentUid?: string; managedBy?: string; url: string }> = [];
-  let totalRows = 0;
-  for (let page = 1; page <= MAX_PAGES; page++) {
+  let totalRows = Number.POSITIVE_INFINITY;
+  for (let page = 0; rows.length < totalRows; page++) {
     const result = await searcher.search({
       kind: ['dashboard'],
       query: '*',
-      from: (page - 1) * PAGE_SIZE,
-      offset: (page - 1) * PAGE_SIZE,
+      from: page * PAGE_SIZE,
+      offset: page * PAGE_SIZE,
       limit: PAGE_SIZE,
     });
     const items: DashboardQueryResult[] = result.view.toArray();
@@ -153,7 +139,7 @@ async function fetchAllDashboards(): Promise<
       break;
     }
   }
-  return { rows, truncated: totalRows > rows.length };
+  return rows;
 }
 
 function aggregate(
@@ -291,10 +277,11 @@ function aggregate(
     });
   }
 
-  // Sort: unmanaged folders first (the migration targets), then by dashboard
-  // count desc so the highest-leverage targets surface at the top, then title.
-  // Empty folders are kept — they're still valid migration targets even though
-  // they have lower leverage.
+  // Default ordering: unmanaged folders first (the migration targets), then by
+  // dashboard count desc so the folders with the most to migrate surface at the
+  // top, then title. The table lets the user re-sort; this is just a sensible
+  // initial order. Empty folders are kept — they're still valid migration
+  // targets even though there's less inside them.
   return rows.sort((a, b) => {
     const aIsUnmanaged = a.managedBy ? 0 : 1;
     const bIsUnmanaged = b.managedBy ? 0 : 1;
@@ -312,17 +299,16 @@ function aggregate(
 
 /**
  * Frontend aggregation that fans out to the existing folder + dashboard search
- * APIs and joins them into a per-folder roll-up. Capped at MAX_PAGES * PAGE_SIZE
- * items each — fine for instances with up to a few thousand dashboards. When
- * the dedicated backend leaderboard endpoint lands, swap the body of this hook
- * to consume it.
+ * APIs and joins them into a per-folder roll-up of dashboard counts and
+ * management state. It pages through every folder and dashboard on the
+ * instance. When a dedicated backend endpoint for this roll-up lands, swap the
+ * body of this hook to consume it.
  */
-export function useFolderLeaderboard(): State {
+export function useFolderMigrationData(): State {
   const [state, setState] = useState<State>({
     data: [],
     isLoading: true,
     isError: false,
-    isTruncated: false,
   });
 
   useEffect(() => {
@@ -334,14 +320,13 @@ export function useFolderLeaderboard(): State {
           return;
         }
         setState({
-          data: aggregate(folders.rows, dashboards.rows),
+          data: aggregate(folders, dashboards),
           isLoading: false,
           isError: false,
-          isTruncated: folders.truncated || dashboards.truncated,
         });
       } catch (err) {
         if (!cancelled) {
-          setState({ data: [], isLoading: false, isError: true, isTruncated: false });
+          setState({ data: [], isLoading: false, isError: true });
         }
       }
     })();

@@ -1,13 +1,13 @@
 import { render, screen } from 'test/test-utils';
 
 import { Migrate } from './Migrate';
-import { type FolderRow, useFolderLeaderboard } from './hooks/useFolderLeaderboard';
+import { type FolderRow, useFolderMigrationData } from './hooks/useFolderMigrationData';
 
-jest.mock('./hooks/useFolderLeaderboard', () => ({
-  useFolderLeaderboard: jest.fn(),
+jest.mock('./hooks/useFolderMigrationData', () => ({
+  useFolderMigrationData: jest.fn(),
 }));
 
-const mockUseFolderLeaderboard = jest.mocked(useFolderLeaderboard);
+const mockUseFolderMigrationData = jest.mocked(useFolderMigrationData);
 
 const folders: FolderRow[] = [
   {
@@ -35,47 +35,38 @@ const folders: FolderRow[] = [
   },
 ];
 
-function mockLeaderboard(overrides: Partial<ReturnType<typeof useFolderLeaderboard>> = {}) {
-  mockUseFolderLeaderboard.mockReturnValue({
+function mockMigrationData(overrides: Partial<ReturnType<typeof useFolderMigrationData>> = {}) {
+  mockUseFolderMigrationData.mockReturnValue({
     data: folders,
     isLoading: false,
     isError: false,
-    isTruncated: false,
     ...overrides,
   });
 }
 
 describe('Migrate', () => {
   beforeEach(() => {
-    mockLeaderboard();
+    mockMigrationData();
   });
 
   afterEach(() => {
     jest.clearAllMocks();
   });
 
-  it('renders a loading spinner while the folder leaderboard is loading', () => {
-    mockLeaderboard({ data: [], isLoading: true });
+  it('renders a loading spinner while the folders are loading', () => {
+    mockMigrationData({ data: [], isLoading: true });
 
     render(<Migrate />);
 
     expect(screen.getByText(/loading folders/i)).toBeInTheDocument();
   });
 
-  it('renders an error alert when the folder leaderboard fails', () => {
-    mockLeaderboard({ data: [], isError: true });
+  it('renders an error alert when loading the folders fails', () => {
+    mockMigrationData({ data: [], isError: true });
 
     render(<Migrate />);
 
     expect(screen.getByText(/failed to load folder list/i)).toBeInTheDocument();
-  });
-
-  it('renders a truncation warning when the leaderboard is truncated', () => {
-    mockLeaderboard({ isTruncated: true });
-
-    render(<Migrate />);
-
-    expect(screen.getByText(/partial view of folders and dashboards/i)).toBeInTheDocument();
   });
 
   it('renders the header with an experimental badge', () => {

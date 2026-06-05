@@ -3,7 +3,7 @@ import { t, Trans } from '@grafana/i18n';
 import { Alert, FeatureBadge, Spinner, Stack, Text } from '@grafana/ui';
 
 import { FoldersToMigrate } from './FoldersToMigrate';
-import { useFolderLeaderboard } from './hooks/useFolderLeaderboard';
+import { useFolderMigrationData } from './hooks/useFolderMigrationData';
 
 function MigrateToGitopsHeader() {
   return (
@@ -31,14 +31,9 @@ function MigrateToGitopsHeader() {
  * changes.
  */
 export function Migrate() {
-  const {
-    data: folders,
-    isLoading: isLeaderboardLoading,
-    isError: isLeaderboardError,
-    isTruncated: isLeaderboardTruncated,
-  } = useFolderLeaderboard();
+  const { data: folders, isLoading, isError } = useFolderMigrationData();
 
-  if (isLeaderboardLoading) {
+  if (isLoading) {
     return (
       <Stack direction="row" alignItems="center" gap={1}>
         <Spinner />
@@ -47,11 +42,12 @@ export function Migrate() {
     );
   }
 
-  if (isLeaderboardError) {
+  if (isError) {
     return (
-      <Alert severity="error" title={t('provisioning.migrate.leaderboard-error-title', 'Failed to load folder list')}>
-        <Trans i18nKey="provisioning.migrate.leaderboard-error-body">
-          The Migrate page needs the folder leaderboard to figure out what to migrate. Refresh the page to try again.
+      <Alert severity="error" title={t('provisioning.migrate.folders-error-title', 'Failed to load folder list')}>
+        <Trans i18nKey="provisioning.migrate.folders-error-body">
+          The Migrate page needs the list of folders and dashboards to figure out what to migrate. Refresh the page to
+          try again.
         </Trans>
       </Alert>
     );
@@ -60,20 +56,6 @@ export function Migrate() {
   return (
     <Stack direction="column" gap={3}>
       <MigrateToGitopsHeader />
-      {isLeaderboardTruncated && (
-        <Alert
-          severity="warning"
-          title={t(
-            'provisioning.migrate.leaderboard-truncated-title',
-            'Showing a partial view of folders and dashboards'
-          )}
-        >
-          <Trans i18nKey="provisioning.migrate.leaderboard-truncated-body">
-            This instance has more folders or dashboards than this page can scan in one go. The list below covers a
-            subset; migrate from it in batches and reload the page after each migration to surface the next batch.
-          </Trans>
-        </Alert>
-      )}
       <FoldersToMigrate folders={folders} />
     </Stack>
   );

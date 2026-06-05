@@ -3,7 +3,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { ManagerKind } from 'app/features/apiserver/types';
 import { getGrafanaSearcher } from 'app/features/search/service/searcher';
 
-import { useFolderLeaderboard } from './useFolderLeaderboard';
+import { useFolderMigrationData } from './useFolderMigrationData';
 
 jest.mock('app/features/search/service/searcher', () => ({
   getGrafanaSearcher: jest.fn(),
@@ -45,17 +45,9 @@ interface FakeDashboard {
 interface MockArgs {
   folders: FakeFolder[];
   dashboards: FakeDashboard[];
-  /**
-   * Override the `totalRows` the searcher reports for the folder fetch. Used
-   * to simulate a dataset larger than what the hook can fetch (so the
-   * truncation check can fire without a 5,000-item fixture).
-   */
-  folderTotalRows?: number;
-  /** Same idea, for the dashboard fetch. */
-  dashboardTotalRows?: number;
 }
 
-function mockSearcherWith({ folders, dashboards, folderTotalRows, dashboardTotalRows }: MockArgs) {
+function mockSearcherWith({ folders, dashboards }: MockArgs) {
   // The hook fires two `searcher.search` calls — one with `kind: ['folder']`,
   // one with `kind: ['dashboard']`. Branch on the kind so the mock returns the
   // right fixture for each.
@@ -64,20 +56,19 @@ function mockSearcherWith({ folders, dashboards, folderTotalRows, dashboardTotal
       const kind = req?.kind?.[0];
       const isFolder = kind === 'folder';
       const rows: Array<FakeFolder | FakeDashboard> = isFolder ? folders : dashboards;
-      const total = (isFolder ? folderTotalRows : dashboardTotalRows) ?? rows.length;
       return {
         view: {
           toArray: () => rows,
         },
         loadMoreItems: jest.fn(),
         isItemLoaded: () => true,
-        totalRows: total,
+        totalRows: rows.length,
       };
     }),
   } as unknown as ReturnType<typeof getGrafanaSearcher>);
 }
 
-describe('useFolderLeaderboard', () => {
+describe('useFolderMigrationData', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
@@ -96,7 +87,7 @@ describe('useFolderLeaderboard', () => {
       ],
     });
 
-    const { result } = renderHook(() => useFolderLeaderboard());
+    const { result } = renderHook(() => useFolderMigrationData());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     // Parent's recursive count includes D2 which lives in the child folder.
@@ -121,7 +112,7 @@ describe('useFolderLeaderboard', () => {
       ],
     });
 
-    const { result } = renderHook(() => useFolderLeaderboard());
+    const { result } = renderHook(() => useFolderMigrationData());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     const general = result.current.data.find((f) => f.uid === 'general');
@@ -149,7 +140,7 @@ describe('useFolderLeaderboard', () => {
       ],
     });
 
-    const { result } = renderHook(() => useFolderLeaderboard());
+    const { result } = renderHook(() => useFolderMigrationData());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     // Two unmanaged folders ahead of the managed one; among the unmanaged the
@@ -168,7 +159,7 @@ describe('useFolderLeaderboard', () => {
       ],
     });
 
-    const { result } = renderHook(() => useFolderLeaderboard());
+    const { result } = renderHook(() => useFolderMigrationData());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     const general = result.current.data.find((f) => f.uid === 'general');
@@ -184,7 +175,7 @@ describe('useFolderLeaderboard', () => {
       ],
     });
 
-    const { result } = renderHook(() => useFolderLeaderboard());
+    const { result } = renderHook(() => useFolderMigrationData());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     const general = result.current.data.find((f) => f.uid === 'general');
@@ -203,7 +194,7 @@ describe('useFolderLeaderboard', () => {
       ],
     });
 
-    const { result } = renderHook(() => useFolderLeaderboard());
+    const { result } = renderHook(() => useFolderMigrationData());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     const general = result.current.data.find((f) => f.uid === 'general');
@@ -228,42 +219,13 @@ describe('useFolderLeaderboard', () => {
       ],
     });
 
-    const { result } = renderHook(() => useFolderLeaderboard());
+    const { result } = renderHook(() => useFolderMigrationData());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     const parent = result.current.data.find((f) => f.uid === 'parent');
     expect(parent?.dashboardCount).toBe(1);
     expect(parent?.directDashboards.map((d) => d.uid)).toEqual(['d1']);
     expect(parent?.allDashboards.map((d) => d.uid)).toEqual(['d1']);
-  });
-
-  it('does not flag truncation when the searcher returned every row', async () => {
-    mockSearcherWith({
-      folders: [{ uid: 'a', name: 'A', location: '' }],
-      dashboards: [{ uid: 'd', name: 'd', url: '/d/d', location: 'a' }],
-    });
-
-    const { result } = renderHook(() => useFolderLeaderboard());
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    expect(result.current.isTruncated).toBe(false);
-  });
-
-  it('flags truncation when the searcher reports more rows than were fetched', async () => {
-    // The fixture itself only has 1 folder and 1 dashboard, but the searcher
-    // reports totalRows: 99999 — simulating an instance with way more rows
-    // than the hook's MAX_PAGES * PAGE_SIZE cap.
-    mockSearcherWith({
-      folders: [{ uid: 'a', name: 'A', location: '' }],
-      dashboards: [{ uid: 'd', name: 'd', url: '/d/d', location: 'a' }],
-      folderTotalRows: 99999,
-      dashboardTotalRows: 99999,
-    });
-
-    const { result } = renderHook(() => useFolderLeaderboard());
-    await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-    expect(result.current.isTruncated).toBe(true);
   });
 
   it('sets isError when the searcher rejects', async () => {
@@ -273,7 +235,7 @@ describe('useFolderLeaderboard', () => {
       }),
     } as unknown as ReturnType<typeof getGrafanaSearcher>);
 
-    const { result } = renderHook(() => useFolderLeaderboard());
+    const { result } = renderHook(() => useFolderMigrationData());
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
     expect(result.current.isError).toBe(true);

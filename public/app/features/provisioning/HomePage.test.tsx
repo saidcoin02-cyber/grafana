@@ -32,7 +32,7 @@ jest.mock('app/api/clients/provisioning/v0alpha1', () => ({
 }));
 
 // The Migrate tab renders for real (see note above) and fans out to the
-// unified searcher via the folder leaderboard hook to build the unmanaged
+// unified searcher via the folder-migration hook to build the unmanaged
 // folders table. Return an empty result so the hook resolves quickly and the
 // tab settles without hitting the real search backend.
 jest.mock('app/features/search/service/searcher', () => ({
@@ -82,7 +82,7 @@ describe('Provisioning HomePage', () => {
 
     await user.click(migrateTab);
 
-    // The Migrate tab fetches the folder leaderboard before rendering its
+    // The Migrate tab fetches the folder list before rendering its
     // content, so await the heading rather than asserting synchronously.
     expect(await screen.findByRole('heading', { name: /migrate to gitops/i })).toBeInTheDocument();
     expect(screen.getByText(/^experimental$/i)).toBeInTheDocument();

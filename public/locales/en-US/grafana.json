@@ -13654,13 +13654,11 @@
       "dashboards-to-migrate-heading": "Dashboards to migrate",
       "dashboards-to-migrate-search": "Search folders and dashboards",
       "dashboards-to-migrate-subtitle": "Folders and dashboards on this instance that are not yet managed by GitOps.",
+      "folders-error-body": "The Migrate page needs the list of folders and dashboards to figure out what to migrate. Refresh the page to try again.",
+      "folders-error-title": "Failed to load folder list",
       "general-folder-title": "General (root dashboards)",
       "header-subtitle": "Manage your dashboards and folders like code — every change tracked, every update reviewed, every environment reproducible. Connect a Git repository to get started.",
       "header-title": "Migrate to GitOps",
-      "leaderboard-error-body": "The Migrate page needs the folder leaderboard to figure out what to migrate. Refresh the page to try again.",
-      "leaderboard-error-title": "Failed to load folder list",
-      "leaderboard-truncated-body": "This instance has more folders or dashboards than this page can scan in one go. The list below covers a subset; migrate from it in batches and reload the page after each migration to surface the next batch.",
-      "leaderboard-truncated-title": "Showing a partial view of folders and dashboards",
       "loading-folders": "Loading folders..."
     },
     "missing-folder-metadata-banner": {
