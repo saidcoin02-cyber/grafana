@@ -75,8 +75,10 @@ export function Migrate({ repos = [] }: MigrateProps) {
       );
     }
 
-    // Nothing left to migrate — everything is already managed in Git.
-    if (unmanagedCount === 0) {
+    // Nothing left to migrate — everything is already managed in Git. Guard on
+    // a successful response so an errored/empty stats query doesn't masquerade
+    // as "nothing to migrate" (the count is 0 when there's simply no data).
+    if (statsQuery.isSuccess && unmanagedCount === 0) {
       return (
         <Box
           paddingY={6}
